@@ -1,0 +1,208 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidUser(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 60 &&
+             data.username is string && data.username.size() >= 3 && data.username.size() <= 30 &&
+             (!('photoUrl' in data) || data.photoUrl == null || (data.photoUrl is string && data.photoUrl.size() <= 500)) &&
+             (!('bio' in data) || data.bio == null || (data.bio is string && data.bio.size() <= 300)) &&
+             (!('statusMessage' in data) || data.statusMessage == null || (data.statusMessage is string && data.statusMessage.size() <= 150)) &&
+             (!('isOnline' in data) || data.isOnline is bool) &&
+             (!('lastSeen' in data) || data.lastSeen == null || (data.lastSeen is timestamp && data.lastSeen <= request.time)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidConversation(data) {
+      return data.conversationId is string && data.conversationId.size() <= 128 &&
+             data.type in ['direct', 'group'] &&
+             data.memberIds is list && data.memberIds.size() >= 2 && data.memberIds.size() <= 100 &&
+             (data.memberIds.size() == 0 || data.memberIds[0] is string) &&
+             data.adminIds is list && data.adminIds.size() >= 1 && data.adminIds.size() <= 50 &&
+             (data.adminIds.size() == 0 || data.adminIds[0] is string) &&
+             request.auth.uid in data.memberIds &&
+             (!('title' in data) || data.title == null || (data.title is string && data.title.size() <= 80)) &&
+             (!('photoUrl' in data) || data.photoUrl == null || (data.photoUrl is string && data.photoUrl.size() <= 500)) &&
+             (!('description' in data) || data.description == null || (data.description is string && data.description.size() <= 300)) &&
+             (!('lastMessageText' in data) || data.lastMessageText == null || (data.lastMessageText is string && data.lastMessageText.size() <= 500)) &&
+             (!('lastMessageSenderId' in data) || data.lastMessageSenderId == null || data.lastMessageSenderId is string) &&
+             (!('lastMessageTimestamp' in data) || data.lastMessageTimestamp == null || data.lastMessageTimestamp is timestamp) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidMessage(data, convId) {
+      return data.messageId is string && data.messageId.size() <= 128 &&
+             data.conversationId == convId &&
+             data.senderId == request.auth.uid &&
+             data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 60 &&
+             data.messageType in ['text', 'image', 'video', 'audio', 'document', 'apk', 'link'] &&
+             data.text is string && data.text.size() <= 4000 &&
+             data.memberIds is list && data.memberIds.size() >= 2 && request.auth.uid in data.memberIds &&
+             (!('attachmentUrl' in data) || data.attachmentUrl == null || (data.attachmentUrl is string && data.attachmentUrl.size() <= 1000)) &&
+             (!('attachmentName' in data) || data.attachmentName == null || (data.attachmentName is string && data.attachmentName.size() <= 200)) &&
+             (!('attachmentSize' in data) || data.attachmentSize == null || data.attachmentSize is int) &&
+             (!('attachmentMime' in data) || data.attachmentMime == null || (data.attachmentMime is string && data.attachmentMime.size() <= 100)) &&
+             (!('attachmentRiskScore' in data) || data.attachmentRiskScore == null || data.attachmentRiskScore in ['safe', 'warning', 'caution', 'danger', 'unverified']) &&
+             (!('replyToMessageId' in data) || data.replyToMessageId == null || (data.replyToMessageId is string && data.replyToMessageId.size() <= 128)) &&
+             (!('replyToText' in data) || data.replyToText == null || (data.replyToText is string && data.replyToText.size() <= 200)) &&
+             (!('isEdited' in data) || data.isEdited is bool) &&
+             (!('deletedForEveryone' in data) || data.deletedForEveryone is bool) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidSecurityEvent(data, userId) {
+      return data.eventId is string && data.eventId.size() <= 128 &&
+             data.userId == userId && data.userId == request.auth.uid &&
+             data.eventType is string && data.eventType.size() <= 50 &&
+             data.title is string && data.title.size() <= 100 &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 500)) &&
+             data.severity in ['low', 'medium', 'high', 'critical', 'info'] &&
+             data.remediationStatus in ['resolved', 'pending', 'action_required'] &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidUserSettings(data, userId) {
+      return data.userId == userId && data.userId == request.auth.uid &&
+             data.theme in ['system', 'light', 'dark'] &&
+             data.appLockEnabled is bool &&
+             (!('appLockPinHash' in data) || data.appLockPinHash == null || (data.appLockPinHash is string && data.appLockPinHash.size() <= 128)) &&
+             (!('autoLockInactivitySec' in data) || data.autoLockInactivitySec is int) &&
+             data.notificationsEnabled is bool &&
+             (!('messageSound' in data) || data.messageSound is bool) &&
+             (!('readReceipts' in data) || data.readReceipts is bool) &&
+             (!('lastSeenVisible' in data) || data.lastSeenVisible is bool) &&
+             (!('onlineVisible' in data) || data.onlineVisible is bool) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    // User profiles: authenticated users can discover/view profiles; users can only edit their own
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId);
+      allow list: if isSignedIn();
+
+      allow create: if isSignedIn() && isValidId(userId) && request.auth.uid == userId &&
+                       isValidUser(incoming()) &&
+                       incoming().keys().hasAll(['userId', 'displayName', 'username', 'createdAt', 'updatedAt']);
+
+      allow update: if isSignedIn() && isValidId(userId) && request.auth.uid == userId &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidUser(incoming()) &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'username', 'photoUrl', 'bio', 'statusMessage', 'isOnline', 'lastSeen', 'updatedAt']);
+
+      allow delete: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+
+      // User Settings subcollection
+      match /settings/{settingId} {
+        allow get, list: if isSignedIn() && request.auth.uid == userId;
+        allow create: if isSignedIn() && request.auth.uid == userId &&
+                         isValidUserSettings(incoming(), userId) &&
+                         incoming().keys().hasAll(['userId', 'theme', 'appLockEnabled', 'notificationsEnabled', 'createdAt', 'updatedAt']);
+        allow update: if isSignedIn() && request.auth.uid == userId &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidUserSettings(incoming(), userId) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['theme', 'appLockEnabled', 'appLockPinHash', 'autoLockInactivitySec', 'notificationsEnabled', 'messageSound', 'readReceipts', 'lastSeenVisible', 'onlineVisible', 'updatedAt']);
+        allow delete: if isSignedIn() && request.auth.uid == userId;
+      }
+
+      // Security Events subcollection
+      match /securityEvents/{eventId} {
+        allow get, list: if isSignedIn() && request.auth.uid == userId;
+        allow create: if isSignedIn() && request.auth.uid == userId &&
+                         isValidSecurityEvent(incoming(), userId) &&
+                         incoming().keys().hasAll(['eventId', 'userId', 'eventType', 'title', 'severity', 'remediationStatus', 'createdAt']);
+        allow update: if isSignedIn() && request.auth.uid == userId &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidSecurityEvent(incoming(), userId) &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['remediationStatus', 'description', 'severity']);
+        allow delete: if isSignedIn() && request.auth.uid == userId;
+      }
+    }
+
+    // Conversations: direct and group chat rooms
+    match /conversations/{conversationId} {
+      allow get: if isSignedIn() && isValidId(conversationId) && request.auth.uid in resource.data.memberIds;
+      allow list: if isSignedIn() && request.auth.uid in resource.data.memberIds;
+
+      allow create: if isSignedIn() && isValidId(conversationId) &&
+                       isValidConversation(incoming()) &&
+                       request.auth.uid in incoming().memberIds &&
+                       request.auth.uid in incoming().adminIds &&
+                       incoming().keys().hasAll(['conversationId', 'type', 'memberIds', 'adminIds', 'createdAt', 'updatedAt']);
+
+      allow update: if isSignedIn() && isValidId(conversationId) &&
+                       request.auth.uid in existing().memberIds &&
+                       incoming().conversationId == existing().conversationId &&
+                       incoming().createdAt == existing().createdAt &&
+                       isValidConversation(incoming()) &&
+                       (
+                         // Member sending message updates last message metadata
+                         incoming().diff(existing()).affectedKeys().hasOnly(['lastMessageText', 'lastMessageSenderId', 'lastMessageTimestamp', 'updatedAt']) ||
+                         // Admin updating group metadata or membership
+                         (request.auth.uid in existing().adminIds && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'photoUrl', 'description', 'memberIds', 'adminIds', 'lastMessageText', 'lastMessageSenderId', 'lastMessageTimestamp', 'updatedAt']))
+                       );
+
+      allow delete: if isSignedIn() && isValidId(conversationId) && request.auth.uid in existing().adminIds;
+
+      // Messages subcollection
+      match /messages/{messageId} {
+        // Direct denormalized member check for high performance without transitive get()
+        allow get: if isSignedIn() && isValidId(messageId) && request.auth.uid in resource.data.memberIds;
+        allow list: if isSignedIn() && request.auth.uid in resource.data.memberIds;
+
+        allow create: if isSignedIn() && isValidId(messageId) &&
+                         isValidMessage(incoming(), conversationId) &&
+                         request.auth.uid in incoming().memberIds &&
+                         incoming().keys().hasAll(['messageId', 'conversationId', 'senderId', 'senderName', 'messageType', 'memberIds', 'createdAt', 'updatedAt']);
+
+        allow update: if isSignedIn() && isValidId(messageId) &&
+                         request.auth.uid in existing().memberIds &&
+                         incoming().messageId == existing().messageId &&
+                         incoming().conversationId == existing().conversationId &&
+                         incoming().senderId == existing().senderId &&
+                         incoming().createdAt == existing().createdAt &&
+                         isValidMessage(incoming(), conversationId) &&
+                         (
+                           // Sender editing message
+                           (request.auth.uid == existing().senderId && incoming().diff(existing()).affectedKeys().hasOnly(['text', 'isEdited', 'updatedAt'])) ||
+                           // Sender or Admin deleting for everyone
+                           ((request.auth.uid == existing().senderId || request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.adminIds) &&
+                            incoming().diff(existing()).affectedKeys().hasOnly(['deletedForEveryone', 'text', 'updatedAt']))
+                         );
+
+        allow delete: if isSignedIn() && isValidId(messageId) &&
+                         (request.auth.uid == existing().senderId ||
+                          request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.adminIds);
+      }
+    }
+  }
+}

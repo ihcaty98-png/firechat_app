@@ -1,0 +1,126 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Authenticated user profile in Fireonline Chati",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "username": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "bio": { "type": "string" },
+        "statusMessage": { "type": "string" },
+        "isOnline": { "type": "boolean" },
+        "lastSeen": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "displayName", "username", "createdAt", "updatedAt"]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "Direct 1-to-1 or group chat room",
+      "type": "object",
+      "properties": {
+        "conversationId": { "type": "string" },
+        "type": { "type": "string", "enum": ["direct", "group"] },
+        "memberIds": { "type": "array" },
+        "adminIds": { "type": "array" },
+        "title": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "description": { "type": "string" },
+        "lastMessageText": { "type": "string" },
+        "lastMessageSenderId": { "type": "string" },
+        "lastMessageTimestamp": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["conversationId", "type", "memberIds", "adminIds", "createdAt", "updatedAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Individual message inside a conversation with support for rich attachments (images, video, documents, APK files)",
+      "type": "object",
+      "properties": {
+        "messageId": { "type": "string" },
+        "conversationId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "messageType": { "type": "string", "enum": ["text", "image", "video", "audio", "document", "apk", "link"] },
+        "text": { "type": "string" },
+        "attachmentUrl": { "type": "string" },
+        "attachmentName": { "type": "string" },
+        "attachmentSize": { "type": "integer" },
+        "attachmentMime": { "type": "string" },
+        "attachmentRiskScore": { "type": "string" },
+        "replyToMessageId": { "type": "string" },
+        "replyToText": { "type": "string" },
+        "isEdited": { "type": "boolean" },
+        "deletedForEveryone": { "type": "boolean" },
+        "memberIds": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["messageId", "conversationId", "senderId", "senderName", "messageType", "memberIds", "createdAt", "updatedAt"]
+    },
+    "SecurityEvent": {
+      "title": "SecurityEvent",
+      "description": "Security Center audit log, malware/APK inspection, or privacy finding for the user",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string" },
+        "userId": { "type": "string" },
+        "eventType": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "severity": { "type": "string", "enum": ["low", "medium", "high", "critical", "info"] },
+        "remediationStatus": { "type": "string", "enum": ["resolved", "pending", "action_required"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["eventId", "userId", "eventType", "title", "severity", "remediationStatus", "createdAt"]
+    },
+    "UserSettings": {
+      "title": "UserSettings",
+      "description": "User preferences for privacy, appearance, app lock, and notifications",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "theme": { "type": "string" },
+        "appLockEnabled": { "type": "boolean" },
+        "appLockPinHash": { "type": "string" },
+        "autoLockInactivitySec": { "type": "integer" },
+        "notificationsEnabled": { "type": "boolean" },
+        "messageSound": { "type": "boolean" },
+        "readReceipts": { "type": "boolean" },
+        "lastSeenVisible": { "type": "boolean" },
+        "onlineVisible": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "theme", "appLockEnabled", "notificationsEnabled", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "entities/User" },
+      "description": "Public and discovered user profile documents"
+    },
+    "/conversations/{conversationId}": {
+      "schema": { "$ref": "entities/Conversation" },
+      "description": "Direct and group conversation chat rooms"
+    },
+    "/conversations/{conversationId}/messages/{messageId}": {
+      "schema": { "$ref": "entities/Message" },
+      "description": "Messages sent within conversations"
+    },
+    "/users/{userId}/securityEvents/{eventId}": {
+      "schema": { "$ref": "entities/SecurityEvent" },
+      "description": "Security scan events and threat alerts scoped to individual users"
+    },
+    "/users/{userId}/settings/{settingId}": {
+      "schema": { "$ref": "entities/UserSettings" },
+      "description": "User preferences for privacy, security and appearance"
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Fireonline Chati",
+  "description": "Production-ready Android messaging app with Google login, real-time chats, groups, rich file attachments, Security Center, and purple-white UI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
